@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PinSpace — Profile</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .profile-header { max-width: 900px; margin: 2.5rem auto 0; padding: 0 1rem; text-align: center; }
+    .profile-avatar-wrap { position: relative; display: inline-block; margin-bottom: 1rem; }
+    .avatar-edit-btn {
+      position: absolute; bottom: 0; right: 0;
+      background: var(--accent); color: white; border: none;
+      border-radius: 50%; width: 28px; height: 28px;
+      font-size: .8rem; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+    }
+    .avatar-edit-btn.show { display: flex; }
+    .profile-name { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.8rem; margin-bottom: .25rem; }
+    .profile-username { color: var(--muted); font-size: .95rem; margin-bottom: .75rem; }
+    .profile-bio { font-size: .95rem; color: #444; max-width: 500px; margin: 0 auto 1rem; line-height: 1.6; }
+    .profile-stats { display: flex; gap: 2rem; justify-content: center; margin-bottom: 1.25rem; }
+    .profile-stat { text-align: center; }
+    .profile-stat-value { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.3rem; }
+    .profile-stat-label { font-size: .8rem; color: var(--muted); }
+    .profile-actions { display: flex; gap: .75rem; justify-content: center; margin-bottom: 2rem; }
+    .profile-tabs {
+      display: flex; justify-content: center;
+      border-bottom: 2px solid var(--border);
+      max-width: 900px; margin: 0 auto;
+    }
+    .profile-tab {
+      padding: .85rem 2rem; font-family: 'DM Sans', sans-serif; font-weight: 600;
+      font-size: .9rem; border: none; background: none; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+      color: var(--muted); transition: all .2s;
+    }
+    .profile-tab.active { color: var(--text); border-bottom-color: var(--text); }
+    .profile-pins { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    .avatar-upload-area {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 1.5rem; text-align: center; cursor: pointer;
+      position: relative; margin-bottom: 1rem; transition: all .2s;
+    }
+    .avatar-upload-area:hover { border-color: var(--accent); }
+    .avatar-upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="nav-logo">📌 PinSpace</a>
+  <div class="nav-right" id="navRight"></div>
+</nav>
+
+<div class="profile-header" id="profileHeader">
+  <div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
+</div>
+
+<div class="profile-tabs" id="profileTabs" style="display:none;">
+  <button class="profile-tab active" onclick="switchTab('pins', this)">📌 Pins</button>
+  <button class="profile-tab" onclick="switchTab('saved', this)">💾 Saved</button>
+</div>
+
+<div class="profile-pins" id="profilePins"></div>
+
+<!-- EDIT PROFILE MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal" style="max-width:440px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+      <span style="font-family:'Syne',sans-serif;font-weight:700;">✏️ Edit Profile</span>
+      <button onclick="closeEditModal()" class="btn-icon">✕</button>
+    </div>
+    <div style="padding:1.5rem;">
+      <div class="avatar-upload-area">
+        <input type="file" id="avatarFile" accept="image/*" onchange="uploadAvatar(this)" />
+        <div>📸 Click to change profile photo</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.25rem;">JPG, PNG, WEBP</div>
+      </div>
+      <div class="form-group"><label>Display Name</label><input type="text" id="editDisplayName" placeholder="Your name" /></div>
+      <div class="form-group"><label>Bio</label><textarea id="editBio" placeholder="Tell people about yourself..."></textarea></div>
+      <button class="btn btn-dark" style="width:100%;justify-content:center;" onclick="saveProfile()">
+        <div class="spinner" id="saveSpinner"></div>
+        <span id="saveBtnText">Save Changes</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/utils.js"></script>
+<script>
+  const socket = io();
+  const username = window.location.pathname.split("/profile/")[1];
+  let profileUser = null;
+  let isOwner = false;
+  let isFollowing = false;
+  let currentTab = "pins";
+
+  renderNav();
+  loadProfile();
+
+  function renderNav() {
+    const nav = document.getElementById("navRight");
+    if (Auth.isLoggedIn()) {
+      const user = Auth.getUser();
+      nav.innerHTML = `
+        <a href="/" class="btn btn-ghost btn-sm">🏠 Feed</a>
+        <button class="btn btn-red btn-sm" onclick="window.location.href='/'">+ Create</button>
+        ${avatarHtml(user, 34)}
+        <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">Logout</button>`;
+    } else {
+      nav.innerHTML = `<a href="/" class="btn btn-ghost btn-sm">🏠 Feed</a>`;
+    }
+  }
+
+  async function loadProfile() {
+    try {
+      const data = await API.get(`/api/auth/user/${username}`);
+      profileUser = data.user;
+      const me = Auth.getUser();
+      isOwner = me && me._id === profileUser._id;
+      isFollowing = me ? profileUser.followers?.includes(me._id) : false;
+      document.title = `${profileUser.displayName || profileUser.username} — PinSpace`;
+      renderHeader();
+      loadPins();
+      document.getElementById("profileTabs").style.display = "flex";
+    } catch (err) {
+      document.getElementById("profileHeader").innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><div class="empty-text">User not found</div></div>`;
+    }
+  }
+
+  function renderHeader() {
+    document.getElementById("profileHeader").innerHTML = `
+      <div class="profile-avatar-wrap">
+        ${avatarHtml(profileUser, 96)}
+        ${isOwner ? `<button class="avatar-edit-btn show" onclick="openEditModal()">✏️</button>` : ""}
+      </div>
+      <div class="profile-name">${profileUser.displayName || profileUser.username}</div>
+      <div class="profile-username">@${profileUser.username}</div>
+      ${profileUser.bio ? `<div class="profile-bio">${profileUser.bio}</div>` : ""}
+      <div class="profile-stats">
+        <div class="profile-stat">
+          <div class="profile-stat-value" id="followerCount">${formatNum(profileUser.followers?.length || 0)}</div>
+          <div class="profile-stat-label">Followers</div>
+        </div>
+        <div class="profile-stat">
+          <div class="profile-stat-value">${formatNum(profileUser.following?.length || 0)}</div>
+          <div class="profile-stat-label">Following</div>
+        </div>
+      </div>
+      <div class="profile-actions">
+        ${isOwner
+          ? `<button class="btn btn-outline" onclick="openEditModal()">✏️ Edit Profile</button>`
+          : Auth.isLoggedIn()
+            ? `<button class="btn ${isFollowing ? "btn-outline" : "btn-dark"}" id="followBtn" onclick="toggleFollow()">
+                ${isFollowing ? "✓ Following" : "Follow"}
+               </button>
+               <button class="btn btn-ghost" onclick="copyToClipboard(window.location.href)">🔗 Share</button>`
+            : `<button class="btn btn-dark" onclick="window.location.href='/'">Follow</button>`
+        }
+      </div>`;
+  }
+
+  async function loadPins() {
+    document.getElementById("profilePins").innerHTML = `<div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>`;
+    try {
+      let pins = [];
+      if (currentTab === "pins") {
+        const data = await API.get(`/api/pins/user/${username}`);
+        pins = data.pins;
+      } else if (currentTab === "saved" && isOwner) {
+        const data = await API.get("/api/auth/me");
+        pins = data.user.savedPins || [];
+      }
+
+      if (!pins.length) {
+        document.getElementById("profilePins").innerHTML = `<div class="empty-state"><div class="empty-icon">📌</div><div class="empty-text">${currentTab === "pins" ? "No pins yet!" : "No saved pins yet!"}</div></div>`;
+        return;
+      }
+
+      const grid = document.createElement("div");
+      grid.className = "masonry-grid";
+      pins.forEach(pin => {
+        if (!pin?.imageUrl) return;
+        const card = document.createElement("div");
+        card.className = "pin-card";
+        card.innerHTML = `
+          <img src="${pin.imageUrl}" alt="${pin.title}" loading="lazy" />
+          <div class="pin-overlay">
+            <div class="pin-overlay-top">
+              ${isOwner ? `<button class="btn btn-red btn-sm" onclick="event.stopPropagation();deletePin('${pin._id}')">🗑️</button>` : `<button class="btn btn-red btn-sm" onclick="event.stopPropagation();savePin('${pin._id}')">💾</button>`}
+            </div>
+            <div class="pin-overlay-bottom">
+              <div class="pin-card-title">${pin.title}</div>
+              <div class="pin-card-author">
+                <span>❤️ ${pin.likes?.length || 0}</span>
+                <span style="margin-left:.5rem;">💬 ${pin.comments?.length || 0}</span>
+              </div>
+            </div>
+          </div>`;
+        card.onclick = () => window.location.href = `/pin/${pin._id}`;
+        grid.appendChild(card);
+      });
+      document.getElementById("profilePins").innerHTML = "";
+      document.getElementById("profilePins").appendChild(grid);
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  function switchTab(tab, btn) {
+    currentTab = tab;
+    document.querySelectorAll(".profile-tab").forEach(t => t.classList.remove("active"));
+    btn.classList.add("active");
+    loadPins();
+  }
+
+  async function toggleFollow() {
+    if (!Auth.isLoggedIn()) return;
+    try {
+      const data = await API.post(`/api/auth/follow/${profileUser._id}`);
+      isFollowing = data.following;
+      const btn = document.getElementById("followBtn");
+      btn.className = `btn ${isFollowing ? "btn-outline" : "btn-dark"}`;
+      btn.textContent = isFollowing ? "✓ Following" : "Follow";
+      document.getElementById("followerCount").textContent = formatNum(data.followerCount);
+      showToast(isFollowing ? `Following @${profileUser.username}!` : "Unfollowed", "success");
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function deletePin(pinId) {
+    if (!confirm("Delete this pin permanently?")) return;
+    try {
+      await API.delete(`/api/pins/${pinId}`);
+      showToast("Pin deleted", "success");
+      loadPins();
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function savePin(pinId) {
+    try {
+      const data = await API.post(`/api/pins/${pinId}/save`);
+      showToast(data.saved ? "Pin saved! 💾" : "Pin unsaved", "success");
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  function openEditModal() {
+    document.getElementById("editDisplayName").value = profileUser.displayName || "";
+    document.getElementById("editBio").value = profileUser.bio || "";
+    document.getElementById("editModal").classList.add("open");
+  }
+  function closeEditModal() { document.getElementById("editModal").classList.remove("open"); }
+
+  async function saveProfile() {
+    const spinner = document.getElementById("saveSpinner");
+    const btnText = document.getElementById("saveBtnText");
+    spinner.style.display = "block"; btnText.textContent = "Saving...";
+    try {
+      const data = await API.put("/api/auth/profile", {
+        displayName: document.getElementById("editDisplayName").value.trim(),
+        bio: document.getElementById("editBio").value.trim(),
+      });
+      profileUser = { ...profileUser, ...data.user };
+      const stored = Auth.getUser();
+      Auth.save(Auth.getToken(), { ...stored, displayName: data.user.displayName });
+      closeEditModal();
+      renderHeader();
+      showToast("Profile updated! ✅", "success");
+    } catch (err) { showToast(err.message, "error"); }
+    finally { spinner.style.display = "none"; btnText.textContent = "Save Changes"; }
+  }
+
+  async function uploadAvatar(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("avatar", file);
+    showToast("Uploading photo...", "info");
+    try {
+      const data = await API.upload("/api/auth/avatar", fd);
+      profileUser.avatar = data.avatar;
+      const stored = Auth.getUser();
+      Auth.save(Auth.getToken(), { ...stored, avatar: data.avatar });
+      renderHeader();
+      showToast("Profile photo updated! ✅", "success");
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  document.getElementById("editModal").addEventListener("click", e => {
+    if (e.target === e.currentTarget) closeEditModal();
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeEditModal(); });
+</script>
+</body>
+</html>

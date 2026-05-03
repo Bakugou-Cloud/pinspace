@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PinSpace — Pin</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .pin-detail { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+    .pin-layout {
+      display: grid; grid-template-columns: 1fr 1fr;
+      background: white; border-radius: 24px;
+      overflow: hidden; box-shadow: 0 4px 40px rgba(0,0,0,.12);
+      min-height: 500px;
+    }
+    @media (max-width: 700px) { .pin-layout { grid-template-columns: 1fr; } }
+    .pin-image-side img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pin-info-side { padding: 1.75rem; overflow-y: auto; max-height: 90vh; display: flex; flex-direction: column; }
+    .pin-actions-bar { display: flex; gap: .5rem; margin-bottom: 1.25rem; align-items: center; }
+    .pin-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.5rem; margin-bottom: .75rem; }
+    .pin-desc { color: var(--muted); font-size: .95rem; line-height: 1.6; margin-bottom: 1rem; }
+    .pin-tags { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+    .pin-tag {
+      font-size: .78rem; padding: .25rem .75rem; border-radius: 20px;
+      background: #f0eef8; color: #7c6aff; cursor: pointer;
+    }
+    .pin-tag:hover { background: #e0dcf5; }
+    .author-card { display: flex; align-items: center; gap: .75rem; padding: 1rem 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 1.25rem; }
+    .author-info { flex: 1; }
+    .author-name { font-weight: 700; font-size: .95rem; text-decoration: none; color: var(--text); }
+    .author-followers { font-size: .8rem; color: var(--muted); }
+    .like-btn { display: flex; align-items: center; gap: .4rem; padding: .55rem 1.1rem; border-radius: 24px; border: 2px solid var(--border); background: white; cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: .9rem; transition: all .15s; }
+    .like-btn.liked { background: #fff0f0; border-color: var(--accent); color: var(--accent); }
+    .like-btn:hover { border-color: #999; }
+    .share-btn { padding: .55rem 1.1rem; border-radius: 24px; border: 2px solid var(--border); background: white; cursor: pointer; font-size: .9rem; font-family: 'DM Sans', sans-serif; font-weight: 600; transition: all .15s; }
+    .share-btn:hover { border-color: #999; }
+    /* COMMENTS */
+    .comments-section { flex: 1; }
+    .comments-title { font-family: 'Syne', sans-serif; font-weight: 700; margin-bottom: .75rem; }
+    .comment-list { max-height: 300px; overflow-y: auto; margin-bottom: 1rem; }
+    .comment-item { display: flex; gap: .6rem; margin-bottom: .9rem; }
+    .comment-body { flex: 1; background: var(--bg); border-radius: 12px; padding: .6rem .8rem; }
+    .comment-author { font-weight: 600; font-size: .82rem; margin-bottom: .2rem; }
+    .comment-text { font-size: .88rem; line-height: 1.5; }
+    .comment-time { font-size: .72rem; color: var(--muted); margin-top: .25rem; }
+    .comment-input-area { display: flex; gap: .6rem; align-items: flex-end; margin-top: auto; }
+    .comment-input-area textarea {
+      flex: 1; border: 2px solid var(--border); border-radius: 12px;
+      padding: .65rem .9rem; font-family: 'DM Sans', sans-serif; font-size: .9rem;
+      outline: none; resize: none; transition: border-color .2s; max-height: 100px;
+    }
+    .comment-input-area textarea:focus { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/" class="nav-logo">📌 PinSpace</a>
+  <div class="nav-right" id="navRight"></div>
+</nav>
+
+<div class="pin-detail">
+  <div id="pinContent">
+    <div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/utils.js"></script>
+<script>
+  const socket = io();
+  const pinId = window.location.pathname.split("/pin/")[1];
+  let pin = null;
+  let isLiked = false;
+  let isSaved = false;
+  let isFollowing = false;
+
+  renderNav();
+  loadPin();
+
+  if (Auth.isLoggedIn()) socket.emit("join", Auth.getUser()?._id);
+
+  socket.on("newComment", ({ pinId: pid, comment }) => {
+    if (pid === pinId) appendComment(comment);
+  });
+
+  function renderNav() {
+    const nav = document.getElementById("navRight");
+    if (Auth.isLoggedIn()) {
+      const user = Auth.getUser();
+      nav.innerHTML = `
+        <a href="/" class="btn btn-ghost btn-sm">🏠 Feed</a>
+        <a href="/profile/${user.username}" style="text-decoration:none;">${avatarHtml(user, 34)}</a>
+        <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">Logout</button>`;
+    } else {
+      nav.innerHTML = `<a href="/" class="btn btn-ghost btn-sm">🏠 Feed</a>`;
+    }
+  }
+
+  async function loadPin() {
+    try {
+      const data = await API.get(`/api/pins/${pinId}`);
+      pin = data.pin;
+      const user = Auth.getUser();
+      isLiked = user ? pin.likes.includes(user._id) : false;
+      isSaved = false;
+      if (user) {
+        try { const me = await API.get("/api/auth/me"); isSaved = me.user.savedPins?.some(p => p._id === pinId || p === pinId); } catch {}
+        isFollowing = pin.author?.followers?.includes(user._id);
+      }
+      renderPin();
+    } catch (err) {
+      document.getElementById("pinContent").innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><div class="empty-text">${err.message}</div></div>`;
+    }
+  }
+
+  function renderPin() {
+    const user = Auth.getUser();
+    const isOwner = user && pin.author?._id === user._id;
+    document.title = `${pin.title} — PinSpace`;
+
+    document.getElementById("pinContent").innerHTML = `
+      <div class="pin-layout">
+        <div class="pin-image-side">
+          <img src="${pin.imageUrl}" alt="${pin.title}" />
+        </div>
+        <div class="pin-info-side">
+          <div class="pin-actions-bar">
+            <button class="like-btn ${isLiked ? "liked" : ""}" id="likeBtn" onclick="toggleLike()">
+              ❤️ <span id="likeCount">${pin.likes.length}</span>
+            </button>
+            <button class="share-btn" onclick="copyToClipboard(window.location.href)">🔗 Share</button>
+            <button class="btn btn-red btn-sm" onclick="toggleSave()" id="saveBtn">${isSaved ? "💾 Saved" : "💾 Save"}</button>
+            ${isOwner ? `<button class="btn btn-ghost btn-sm" onclick="deletePin()" style="margin-left:auto;color:var(--accent);">🗑️</button>` : `<button class="btn btn-ghost btn-sm" onclick="reportPin()" style="margin-left:auto;" title="Report">⚑</button>`}
+          </div>
+
+          <div class="pin-title">${pin.title}</div>
+          ${pin.description ? `<div class="pin-desc">${pin.description}</div>` : ""}
+
+          <div class="pin-tags">
+            ${pin.tags.map(t => `<span class="pin-tag" onclick="window.location='/?search=${t}'">#${t}</span>`).join("")}
+            <span style="background:#f0f0f0;color:#666;" class="pin-tag">${pin.category}</span>
+          </div>
+
+          <div class="author-card">
+            <a href="/profile/${pin.author?.username}" style="text-decoration:none;">
+              ${avatarHtml(pin.author, 46)}
+            </a>
+            <div class="author-info">
+              <a class="author-name" href="/profile/${pin.author?.username}">${pin.author?.displayName || pin.author?.username}</a>
+              <div class="author-followers">${formatNum(pin.author?.followers?.length || 0)} followers</div>
+            </div>
+            ${!isOwner ? `<button class="btn ${isFollowing ? "btn-outline" : "btn-dark"} btn-sm" id="followBtn" onclick="toggleFollow()">${isFollowing ? "Following" : "Follow"}</button>` : ""}
+          </div>
+
+          <div class="comments-section">
+            <div class="comments-title">💬 Comments (${pin.comments.length})</div>
+            <div class="comment-list" id="commentList">
+              ${pin.comments.length ? pin.comments.map(c => renderComment(c)).join("") : `<div style="color:var(--muted);font-size:.88rem;padding:.5rem 0;">No comments yet. Be the first!</div>`}
+            </div>
+            ${Auth.isLoggedIn() ? `
+              <div class="comment-input-area">
+                ${avatarHtml(Auth.getUser(), 32)}
+                <textarea id="commentInput" placeholder="Add a comment..." rows="2" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}"></textarea>
+                <button class="btn btn-dark btn-sm" onclick="postComment()">Post</button>
+              </div>` : `<div style="font-size:.88rem;color:var(--muted);text-align:center;padding:1rem;"><a href="javascript:void(0)" onclick="openAuth()" style="color:var(--accent);">Log in</a> to comment</div>`}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderComment(c) {
+    return `<div class="comment-item" id="comment-${c._id}">
+      <a href="/profile/${c.author?.username}" style="text-decoration:none;flex-shrink:0;">${avatarHtml(c.author, 32)}</a>
+      <div class="comment-body">
+        <div class="comment-author">${c.author?.displayName || c.author?.username}</div>
+        <div class="comment-text">${c.text}</div>
+        <div class="comment-time">${timeAgo(c.createdAt)}</div>
+      </div>
+    </div>`;
+  }
+
+  function appendComment(c) {
+    const list = document.getElementById("commentList");
+    if (list) {
+      const noComments = list.querySelector("div[style]");
+      if (noComments) noComments.remove();
+      list.insertAdjacentHTML("beforeend", renderComment(c));
+      list.scrollTop = list.scrollHeight;
+    }
+  }
+
+  async function toggleLike() {
+    if (!Auth.isLoggedIn()) { window.location.href = "/"; return; }
+    try {
+      const data = await API.post(`/api/pins/${pinId}/like`);
+      isLiked = data.liked;
+      document.getElementById("likeBtn").className = `like-btn ${isLiked ? "liked" : ""}`;
+      document.getElementById("likeCount").textContent = data.likeCount;
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function toggleSave() {
+    if (!Auth.isLoggedIn()) { window.location.href = "/"; return; }
+    try {
+      const data = await API.post(`/api/pins/${pinId}/save`);
+      isSaved = data.saved;
+      document.getElementById("saveBtn").textContent = isSaved ? "💾 Saved" : "💾 Save";
+      showToast(isSaved ? "Pin saved!" : "Pin unsaved", "success");
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function toggleFollow() {
+    if (!Auth.isLoggedIn()) { window.location.href = "/"; return; }
+    try {
+      const data = await API.post(`/api/auth/follow/${pin.author._id}`);
+      isFollowing = data.following;
+      const btn = document.getElementById("followBtn");
+      btn.className = `btn ${isFollowing ? "btn-outline" : "btn-dark"} btn-sm`;
+      btn.textContent = isFollowing ? "Following" : "Follow";
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function postComment() {
+    const input = document.getElementById("commentInput");
+    const text = input?.value.trim();
+    if (!text) return;
+    try {
+      await API.post(`/api/pins/${pinId}/comment`, { text });
+      input.value = "";
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function deletePin() {
+    if (!confirm("Delete this pin permanently?")) return;
+    try {
+      await API.delete(`/api/pins/${pinId}`);
+      showToast("Pin deleted", "success");
+      setTimeout(() => window.location.href = "/", 1000);
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function reportPin() {
+    if (!Auth.isLoggedIn()) { showToast("Login to report", "error"); return; }
+    const reason = prompt("Why are you reporting this pin?", "Inappropriate content");
+    if (!reason) return;
+    try {
+      await API.post(`/api/pins/${pinId}/report`, { reason });
+      showToast("Reported! Admin will review it.", "success");
+    } catch (err) { showToast(err.message, "error"); }
+  }
+</script>
+</body>
+</html>

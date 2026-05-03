@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PinSpace — Admin Panel</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    :root { --bg:#0a0a0f;--surface:#111118;--card:#16161f;--border:#1e1e2e;--text:#e8e8f0;--muted:#6b6b80;--accent:#e60023;--success:#4ecdc4;--warning:#ffa502;--danger:#ff4757; }
+    body { background:var(--bg);color:var(--text); }
+    .login-page { min-height:100vh;display:flex;align-items:center;justify-content:center; }
+    .login-box { background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:3rem;width:100%;max-width:400px;text-align:center; }
+    .login-title { font-family:'Syne',sans-serif;font-weight:800;font-size:1.8rem;color:var(--accent);margin-bottom:.5rem; }
+    .admin-layout { display:flex;min-height:100vh; }
+    .sidebar { width:220px;background:var(--surface);border-right:1px solid var(--border);padding:1.5rem 1rem;position:sticky;top:0;height:100vh;display:none;flex-direction:column; }
+    .sidebar.show { display:flex; }
+    .sidebar-logo { font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;color:var(--accent);margin-bottom:2rem;padding:.5rem; }
+    .sidebar-item { display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:10px;margin-bottom:.25rem;cursor:pointer;font-size:.9rem;color:var(--muted);transition:all .15s;border:none;background:none;width:100%;text-align:left; }
+    .sidebar-item:hover { background:var(--card);color:var(--text); }
+    .sidebar-item.active { background:rgba(230,0,35,.12);color:var(--accent);font-weight:600; }
+    .sidebar-badge { margin-left:auto;background:var(--accent);color:white;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:10px;display:none; }
+    .admin-content { flex:1;padding:2rem;overflow-y:auto;display:none; }
+    .admin-content.show { display:block; }
+    .admin-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem; }
+    .admin-page-title { font-family:'Syne',sans-serif;font-weight:700;font-size:1.5rem; }
+    .stat-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;margin-bottom:2rem; }
+    .stat-card { background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.25rem 1.5rem; }
+    .stat-label { font-size:.78rem;color:var(--muted);margin-bottom:.5rem; }
+    .stat-value { font-family:'Syne',sans-serif;font-weight:700;font-size:2rem; }
+    .stat-card.danger .stat-value { color:var(--danger); }
+    .stat-card.warning .stat-value { color:var(--warning); }
+    .table-wrap { background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:1.5rem; }
+    .table-header { padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between; }
+    .table-title { font-family:'Syne',sans-serif;font-weight:700;font-size:1rem; }
+    table { width:100%;border-collapse:collapse; }
+    th { padding:.85rem 1rem;text-align:left;font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border); }
+    td { padding:.85rem 1rem;border-bottom:1px solid var(--border);vertical-align:middle;font-size:.88rem; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:rgba(255,255,255,.02); }
+    .thumb { width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:pointer; }
+    .user-cell { display:flex;align-items:center;gap:.6rem; }
+    .badge { display:inline-flex;align-items:center;padding:.2rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600; }
+    .badge-danger { background:rgba(255,71,87,.12);color:var(--danger); }
+    .badge-success { background:rgba(78,205,196,.12);color:var(--success); }
+    .action-row { display:flex;gap:.4rem; }
+    .table-search { background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.5rem .9rem;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.88rem;outline:none; }
+    .table-search:focus { border-color:var(--accent); }
+    .btn { font-family:'DM Sans',sans-serif;font-weight:600;font-size:.85rem;padding:.45rem .9rem;border-radius:8px;border:none;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:.3rem; }
+    .btn-red { background:var(--accent);color:white; }
+    .btn-danger { background:rgba(255,71,87,.12);color:var(--danger);border:1px solid rgba(255,71,87,.25); }
+    .btn-danger:hover { background:rgba(255,71,87,.2); }
+    .btn-warning { background:rgba(255,165,2,.12);color:var(--warning);border:1px solid rgba(255,165,2,.25); }
+    .btn-success { background:rgba(78,205,196,.12);color:var(--success);border:1px solid rgba(78,205,196,.25); }
+    .btn-ghost { background:transparent;color:var(--muted);border:1px solid var(--border); }
+    .recent-item { display:flex;align-items:center;gap:.75rem;padding:.75rem;border-radius:10px; }
+    .recent-item:hover { background:var(--card); }
+    .lightbox { position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.95);display:none;align-items:center;justify-content:center; }
+    .lightbox.open { display:flex; }
+    .lightbox img { max-width:90vw;max-height:85vh;object-fit:contain;border-radius:8px; }
+    .lb-close { position:absolute;top:1.5rem;right:1.5rem;background:rgba(255,255,255,.1);border:none;color:white;font-size:1.5rem;cursor:pointer;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center; }
+    .spin { width:16px;height:16px;border:2px solid rgba(255,255,255,.2);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;display:inline-block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .dark-input { width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.7rem 1rem;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.95rem;outline:none;margin-bottom:1rem; }
+    .dark-input:focus { border-color:var(--accent); }
+  </style>
+</head>
+<body>
+
+<div class="lightbox" id="lightbox">
+  <button class="lb-close" onclick="closeLb()">✕</button>
+  <img id="lbImg" src="" alt="" />
+</div>
+
+<!-- LOGIN -->
+<div class="login-page" id="loginPage">
+  <div class="login-box">
+    <div style="font-size:2.5rem;margin-bottom:.75rem;">🛡️</div>
+    <div class="login-title">Admin Panel</div>
+    <div style="color:var(--muted);font-size:.9rem;margin-bottom:2rem;">PinSpace — Owner Access Only</div>
+    <input class="dark-input" type="text" id="aUser" placeholder="Username" />
+    <input class="dark-input" type="password" id="aPass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
+    <div id="loginErr" style="color:var(--danger);font-size:.83rem;margin-bottom:.75rem;display:none;"></div>
+    <button class="btn btn-red" style="width:100%;justify-content:center;padding:.8rem;" onclick="doLogin()" id="loginBtn">Login as Admin</button>
+    <div style="margin-top:1.25rem;font-size:.75rem;color:var(--muted);">Default: <code style="color:var(--text);">admin / admin123</code></div>
+  </div>
+</div>
+
+<!-- ADMIN APP -->
+<div class="admin-layout" id="adminApp" style="display:none;">
+  <div class="sidebar show">
+    <div class="sidebar-logo">📌 PinSpace</div>
+    <button class="sidebar-item active" onclick="nav('dashboard',this)">📊 <span>Dashboard</span></button>
+    <button class="sidebar-item" onclick="nav('pins',this)">📌 <span>All Pins</span></button>
+    <button class="sidebar-item" onclick="nav('reported',this)">⚑ <span>Reported</span> <span class="sidebar-badge" id="rBadge"></span></button>
+    <button class="sidebar-item" onclick="nav('users',this)">👥 <span>Users</span></button>
+    <button class="sidebar-item" onclick="nav('banned',this)">🚫 <span>Banned</span></button>
+    <div style="margin-top:auto;">
+      <button class="sidebar-item" onclick="doLogout()">🚪 <span>Logout</span></button>
+    </div>
+  </div>
+  <div class="admin-content show" id="content">
+    <div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
+  </div>
+</div>
+
+<script src="/js/utils.js"></script>
+<script>
+  let token = sessionStorage.getItem("adminToken") || "";
+  let section = "dashboard";
+  if (token) boot();
+
+  async function doLogin() {
+    const btn = document.getElementById("loginBtn");
+    const err = document.getElementById("loginErr");
+    err.style.display = "none";
+    btn.innerHTML = `<span class="spin"></span> Logging in...`;
+    try {
+      const res = await fetch("/api/admin/login", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ username: document.getElementById("aUser").value, password: document.getElementById("aPass").value }) });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.message);
+      token = d.token;
+      sessionStorage.setItem("adminToken", token);
+      boot();
+    } catch(e) { err.textContent = "❌ " + e.message; err.style.display = "block"; }
+    finally { btn.textContent = "Login as Admin"; }
+  }
+
+  function boot() {
+    document.getElementById("loginPage").style.display = "none";
+    document.getElementById("adminApp").style.display = "flex";
+    load("dashboard");
+  }
+
+  function doLogout() {
+    sessionStorage.removeItem("adminToken"); token = "";
+    document.getElementById("adminApp").style.display = "none";
+    document.getElementById("loginPage").style.display = "flex";
+  }
+
+  function nav(s, btn) {
+    section = s;
+    document.querySelectorAll(".sidebar-item").forEach(i => i.classList.remove("active"));
+    btn.classList.add("active");
+    load(s);
+  }
+
+  const af = async (url, opts={}) => {
+    const res = await fetch(url, {...opts, headers:{...opts.headers, "Authorization":`Bearer ${token}`, "Content-Type":"application/json"}});
+    if (res.status === 401) { doLogout(); throw new Error("Session expired"); }
+    return res.json();
+  };
+
+  async function load(s) {
+    document.getElementById("content").innerHTML = `<div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>`;
+    if (s === "dashboard") await renderDashboard();
+    else if (s === "pins") await renderPins(false);
+    else if (s === "reported") await renderPins(true);
+    else if (s === "users") await renderUsers(false);
+    else if (s === "banned") await renderUsers(true);
+  }
+
+  async function renderDashboard() {
+    const d = await af("/api/admin/stats");
+    const s = d.stats;
+    if (s.reportedPins > 0) { const b = document.getElementById("rBadge"); b.textContent = s.reportedPins; b.style.display = "inline-flex"; }
+    document.getElementById("content").innerHTML = `
+      <div class="admin-header"><div class="admin-page-title">📊 Dashboard</div><span style="color:var(--muted);font-size:.85rem;">Welcome back, Admin 👋</span></div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value">${s.totalUsers}</div></div>
+        <div class="stat-card"><div class="stat-label">Total Pins</div><div class="stat-value">${s.totalPins}</div></div>
+        <div class="stat-card danger"><div class="stat-label">Reported Pins</div><div class="stat-value">${s.reportedPins}</div></div>
+        <div class="stat-card warning"><div class="stat-label">Banned Users</div><div class="stat-value">${s.bannedUsers}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+        <div class="table-wrap">
+          <div class="table-header"><div class="table-title">👥 New Users</div></div>
+          ${d.recentUsers.map(u=>`<div class="recent-item">${avatarHtml(u,36)}<div><div style="font-weight:600;font-size:.88rem;">${u.displayName||u.username}</div><div style="font-size:.75rem;color:var(--muted);">@${u.username} · ${timeAgo(u.createdAt)}</div></div></div>`).join("")}
+        </div>
+        <div class="table-wrap">
+          <div class="table-header"><div class="table-title">📌 New Pins</div></div>
+          ${d.recentPins.map(p=>`<div class="recent-item"><img src="${p.imageUrl}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="openLb('${p.imageUrl}')" /><div><div style="font-weight:600;font-size:.88rem;">${p.title}</div><div style="font-size:.75rem;color:var(--muted);">by @${p.author?.username} · ${timeAgo(p.createdAt)}</div></div><button class="btn btn-danger" style="margin-left:auto;" onclick="delPin('${p._id}',this)">🗑️</button></div>`).join("")}
+        </div>
+      </div>`;
+  }
+
+  async function renderPins(reportedOnly) {
+    const d = await af(reportedOnly ? "/api/admin/pins?reported=true" : "/api/admin/pins");
+    document.getElementById("content").innerHTML = `
+      <div class="admin-header"><div class="admin-page-title">${reportedOnly?"⚑ Reported Pins":"📌 All Pins"}</div><input class="table-search" placeholder="Search..." oninput="filterRows('pinTb',this.value)" /></div>
+      <div class="table-wrap">
+        <table><thead><tr><th>Image</th><th>Title</th><th>Author</th><th>Likes</th><th>Comments</th>${reportedOnly?"<th>Reports</th>":""}<th>Date</th><th>Actions</th></tr></thead>
+        <tbody id="pinTb">
+        ${d.pins.map(p=>`<tr id="pr-${p._id}">
+          <td><img class="thumb" src="${p.imageUrl}" onclick="openLb('${p.imageUrl}')" /></td>
+          <td style="max-width:160px;"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.title}</div><div style="font-size:.73rem;color:var(--muted);">${p.category}</div></td>
+          <td style="font-size:.83rem;">@${p.author?.username||"?"}</td>
+          <td>❤️ ${p.likes?.length||0}</td>
+          <td>💬 ${p.comments?.length||0}</td>
+          ${reportedOnly?`<td><span class="badge badge-danger">⚑ ${p.reports?.length}</span></td>`:""}
+          <td style="font-size:.75rem;color:var(--muted);">${timeAgo(p.createdAt)}</td>
+          <td><div class="action-row">
+            <button class="btn btn-danger" onclick="delPin('${p._id}',this)">🗑️ Delete</button>
+            ${reportedOnly?`<button class="btn btn-success" onclick="dismissRep('${p._id}',this)">✓ Dismiss</button>`:""}
+          </div></td>
+        </tr>`).join("")}
+        </tbody></table>
+        ${!d.pins.length?`<div style="text-align:center;padding:3rem;color:var(--muted);">No pins here ✅</div>`:""}
+      </div>`;
+  }
+
+  async function renderUsers(bannedOnly) {
+    const d = await af("/api/admin/users");
+    const users = bannedOnly ? d.users.filter(u=>u.isBanned) : d.users;
+    document.getElementById("content").innerHTML = `
+      <div class="admin-header"><div class="admin-page-title">${bannedOnly?"🚫 Banned Users":"👥 All Users"}</div><input class="table-search" placeholder="Search..." oninput="filterRows('userTb',this.value)" /></div>
+      <div class="table-wrap">
+        <table><thead><tr><th>User</th><th>Email</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="userTb">
+        ${users.map(u=>`<tr id="ur-${u._id}">
+          <td><div class="user-cell">${avatarHtml(u,36)}<div><div style="font-weight:600;font-size:.88rem;">${u.displayName||u.username}</div><div style="font-size:.73rem;color:var(--muted);">@${u.username}</div></div></div></td>
+          <td style="font-size:.8rem;color:var(--muted);">${u.email}</td>
+          <td style="font-size:.76rem;color:var(--muted);">${timeAgo(u.createdAt)}</td>
+          <td>${u.isBanned?`<span class="badge badge-danger">🚫 Banned</span>`:`<span class="badge badge-success">✅ Active</span>`}</td>
+          <td><div class="action-row">
+            <button class="btn ${u.isBanned?"btn-success":"btn-warning"}" onclick="toggleBan('${u._id}',${u.isBanned},this)">${u.isBanned?"✓ Unban":"🚫 Ban"}</button>
+            <button class="btn btn-danger" onclick="delUser('${u._id}',this)">🗑️</button>
+          </div></td>
+        </tr>`).join("")}
+        </tbody></table>
+        ${!users.length?`<div style="text-align:center;padding:3rem;color:var(--muted);">No users here ✅</div>`:""}
+      </div>`;
+  }
+
+  function filterRows(tbId, q) {
+    document.querySelectorAll(`#${tbId} tr`).forEach(r => {
+      r.style.display = r.textContent.toLowerCase().includes(q.toLowerCase()) ? "" : "none";
+    });
+  }
+
+  async function delPin(id, btn) {
+    if (!confirm("Delete this pin permanently?")) return;
+    btn.innerHTML = `<span class="spin"></span>`;
+    try { await af(`/api/admin/pins/${id}`, {method:"DELETE"}); document.getElementById(`pr-${id}`)?.remove(); showToast("Pin deleted ✅","success"); }
+    catch(e) { showToast(e.message,"error"); btn.textContent="🗑️ Delete"; }
+  }
+
+  async function dismissRep(id, btn) {
+    btn.innerHTML = `<span class="spin"></span>`;
+    try { await af(`/api/admin/pins/${id}/dismiss-report`, {method:"POST"}); document.getElementById(`pr-${id}`)?.remove(); showToast("Report dismissed ✅","success"); }
+    catch(e) { showToast(e.message,"error"); }
+  }
+
+  async function toggleBan(id, isBanned, btn) {
+    const reason = isBanned ? null : prompt("Reason for ban?", "Violated community guidelines");
+    if (!isBanned && !reason) return;
+    btn.innerHTML = `<span class="spin"></span>`;
+    try { await af(`/api/admin/users/${id}/ban`, {method:"POST", body:JSON.stringify({reason})}); showToast(isBanned?"User unbanned":"User banned ✅","success"); load(section); }
+    catch(e) { showToast(e.message,"error"); }
+  }
+
+  async function delUser(id, btn) {
+    if (!confirm("Delete this user and ALL their pins? Cannot be undone!")) return;
+    btn.innerHTML = `<span class="spin"></span>`;
+    try { await af(`/api/admin/users/${id}`, {method:"DELETE"}); document.getElementById(`ur-${id}`)?.remove(); showToast("User deleted ✅","success"); }
+    catch(e) { showToast(e.message,"error"); }
+  }
+
+  function openLb(url) { document.getElementById("lbImg").src=url; document.getElementById("lightbox").classList.add("open"); }
+  function closeLb() { document.getElementById("lightbox").classList.remove("open"); }
+  document.getElementById("lightbox").addEventListener("click", e => { if(e.target===e.currentTarget) closeLb(); });
+  document.addEventListener("keydown", e => { if(e.key==="Escape") closeLb(); });
+</script>
+</body>
+</html>

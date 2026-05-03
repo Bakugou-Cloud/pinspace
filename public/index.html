@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PinSpace — Discover & Share Ideas</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+<!-- ── NAVBAR ── -->
+<nav class="navbar">
+  <a href="/" class="nav-logo">📌 PinSpace</a>
+  <div class="nav-search">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search pins, ideas, tags..." id="searchInput" oninput="debounceSearch()" />
+  </div>
+  <div class="nav-right" id="navRight">
+    <!-- filled by JS -->
+  </div>
+</nav>
+
+<!-- ── CATEGORIES ── -->
+<div class="categories" id="categories">
+  <button class="cat-pill active" onclick="filterCategory('All', this)">All</button>
+  <button class="cat-pill" onclick="filterCategory('Art', this)">🎨 Art</button>
+  <button class="cat-pill" onclick="filterCategory('Photography', this)">📷 Photography</button>
+  <button class="cat-pill" onclick="filterCategory('Travel', this)">✈️ Travel</button>
+  <button class="cat-pill" onclick="filterCategory('Food', this)">🍕 Food</button>
+  <button class="cat-pill" onclick="filterCategory('Fashion', this)">👗 Fashion</button>
+  <button class="cat-pill" onclick="filterCategory('Technology', this)">💻 Technology</button>
+  <button class="cat-pill" onclick="filterCategory('Nature', this)">🌿 Nature</button>
+  <button class="cat-pill" onclick="filterCategory('Architecture', this)">🏛️ Architecture</button>
+  <button class="cat-pill" onclick="filterCategory('DIY', this)">🔨 DIY</button>
+  <button class="cat-pill" onclick="filterCategory('Fitness', this)">💪 Fitness</button>
+  <button class="cat-pill" onclick="filterCategory('Music', this)">🎵 Music</button>
+</div>
+
+<!-- ── FEED ── -->
+<div id="feed">
+  <div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>
+</div>
+
+<!-- ── LOAD MORE ── -->
+<div style="text-align:center; padding:2rem;" id="loadMoreWrapper" style="display:none">
+  <button class="btn btn-ghost" id="loadMoreBtn" onclick="loadMore()">Load More</button>
+</div>
+
+<!-- ── AUTH MODAL ── -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal" style="max-width:400px;">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="loginTab" onclick="switchTab('login')">Log in</button>
+      <button class="auth-tab" id="registerTab" onclick="switchTab('register')">Sign up</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div class="auth-form" id="loginForm">
+      <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" /></div>
+      <div class="auth-error" id="loginError"></div>
+      <button class="btn btn-dark" style="width:100%;justify-content:center;margin-top:.5rem;" onclick="doLogin()">
+        <div class="spinner" id="loginSpinner"></div>
+        <span id="loginBtnText">Log in</span>
+      </button>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div class="auth-form" id="registerForm" style="display:none;">
+      <div class="form-group"><label>Username</label><input type="text" id="regUsername" placeholder="cooluser123" /></div>
+      <div class="form-group"><label>Display Name</label><input type="text" id="regDisplayName" placeholder="Your Name" /></div>
+      <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="you@example.com" /></div>
+      <div class="form-group"><label>Password</label><input type="password" id="regPassword" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doRegister()" /></div>
+      <div class="auth-error" id="registerError"></div>
+      <button class="btn btn-red" style="width:100%;justify-content:center;margin-top:.5rem;" onclick="doRegister()">
+        <div class="spinner" id="registerSpinner"></div>
+        <span id="registerBtnText">Create account</span>
+      </button>
+    </div>
+    <div style="text-align:right;padding:.5rem 1.5rem 1rem;">
+      <button onclick="closeAuthModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem;">✕ Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CREATE PIN MODAL ── -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal" style="max-width:500px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);">
+      <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:1.1rem;">📌 Create Pin</span>
+      <button onclick="closeCreateModal()" class="btn-icon">✕</button>
+    </div>
+    <div class="create-pin-body">
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="pinFile" accept="image/*" onchange="handlePinFile(this)" />
+        <div id="uploadPlaceholder">
+          <div style="font-size:2.5rem;margin-bottom:.5rem;">🖼️</div>
+          <div style="font-weight:600;margin-bottom:.25rem;">Click or drag image here</div>
+          <div style="font-size:0.82rem;color:var(--muted);">JPG, PNG, GIF, WEBP · max 15MB</div>
+        </div>
+        <img id="pinPreview" class="upload-preview" src="" alt="" />
+      </div>
+      <div class="form-group"><label>Title *</label><input type="text" id="pinTitle" placeholder="Give your pin a title" /></div>
+      <div class="form-group"><label>Description</label><textarea id="pinDesc" placeholder="What is this about?"></textarea></div>
+      <div class="form-group">
+        <label>Category</label>
+        <select id="pinCategory">
+          <option value="Other">Other</option>
+          <option value="Art">🎨 Art</option>
+          <option value="Photography">📷 Photography</option>
+          <option value="Travel">✈️ Travel</option>
+          <option value="Food">🍕 Food</option>
+          <option value="Fashion">👗 Fashion</option>
+          <option value="Technology">💻 Technology</option>
+          <option value="Nature">🌿 Nature</option>
+          <option value="Architecture">🏛️ Architecture</option>
+          <option value="DIY">🔨 DIY</option>
+          <option value="Fitness">💪 Fitness</option>
+          <option value="Music">🎵 Music</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Tags (comma separated)</label><input type="text" id="pinTags" placeholder="sunset, travel, india" /></div>
+      <button class="btn btn-red" style="width:100%;justify-content:center;" onclick="createPin()">
+        <div class="spinner" id="createSpinner"></div>
+        <span id="createBtnText">Publish Pin</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── NOTIFICATION PANEL ── -->
+<div id="notifPanel" style="display:none;position:fixed;top:65px;right:1rem;z-index:150;background:white;border:1px solid var(--border);border-radius:16px;width:320px;max-height:400px;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.15);">
+  <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);font-family:'Syne',sans-serif;font-weight:700;">🔔 Notifications</div>
+  <div id="notifList" style="padding:.5rem;"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/utils.js"></script>
+<script>
+  // ── STATE ──────────────────────────────────────────────────────────────────
+  const socket = io();
+  let currentPage = 1;
+  let currentCategory = "All";
+  let currentSearch = "";
+  let totalPages = 1;
+  let searchTimeout;
+  let notifications = [];
+
+  // ── INIT ───────────────────────────────────────────────────────────────────
+  renderNav();
+  loadPins();
+
+  if (Auth.isLoggedIn()) {
+    socket.emit("join", Auth.getUser()._id);
+    socket.on("notification", (notif) => {
+      notifications.unshift(notif);
+      updateNotifBadge();
+      showToast(notif.message, "info");
+    });
+  }
+
+  socket.on("newPin", (pin) => {
+    if (currentPage === 1 && currentCategory === "All" && !currentSearch) {
+      prependPin(pin);
+    }
+  });
+
+  // ── RENDER NAV ─────────────────────────────────────────────────────────────
+  function renderNav() {
+    const nav = document.getElementById("navRight");
+    if (Auth.isLoggedIn()) {
+      const user = Auth.getUser();
+      nav.innerHTML = `
+        <button class="btn btn-red btn-sm" onclick="openCreateModal()">+ Create</button>
+        <button class="btn-icon notif-btn" onclick="toggleNotif()" id="notifBtn">
+          🔔 <span class="notif-badge" id="notifBadge"></span>
+        </button>
+        <a href="/profile/${user.username}" style="text-decoration:none;">
+          ${avatarHtml(user, 36)}
+        </a>
+        <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">Logout</button>
+      `;
+    } else {
+      nav.innerHTML = `
+        <button class="btn btn-ghost btn-sm" onclick="openAuthModal('login')">Log in</button>
+        <button class="btn btn-red btn-sm" onclick="openAuthModal('register')">Sign up</button>
+      `;
+    }
+  }
+
+  // ── LOAD PINS ──────────────────────────────────────────────────────────────
+  async function loadPins(reset = true) {
+    if (reset) { currentPage = 1; document.getElementById("feed").innerHTML = `<div class="loader"><div class="loader-dot"></div><div class="loader-dot"></div><div class="loader-dot"></div></div>`; }
+
+    try {
+      let url = `/api/pins?page=${currentPage}&limit=20`;
+      if (currentCategory !== "All") url += `&category=${currentCategory}`;
+      if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
+
+      const data = await API.get(url);
+      totalPages = data.pages;
+
+      if (reset) {
+        if (!data.pins.length) {
+          document.getElementById("feed").innerHTML = `<div class="empty-state"><div class="empty-icon">📌</div><div class="empty-text">No pins found. Be the first to post!</div></div>`;
+          document.getElementById("loadMoreWrapper").style.display = "none";
+          return;
+        }
+        document.getElementById("feed").innerHTML = `<div class="masonry-grid" id="grid"></div>`;
+      }
+
+      const grid = document.getElementById("grid");
+      data.pins.forEach(pin => grid.appendChild(createPinCard(pin)));
+
+      const lm = document.getElementById("loadMoreWrapper");
+      lm.style.display = currentPage < totalPages ? "block" : "none";
+    } catch (err) {
+      document.getElementById("feed").innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">${err.message}</div></div>`;
+    }
+  }
+
+  function loadMore() {
+    currentPage++;
+    loadPins(false);
+  }
+
+  function prependPin(pin) {
+    let grid = document.getElementById("grid");
+    if (!grid) {
+      document.getElementById("feed").innerHTML = `<div class="masonry-grid" id="grid"></div>`;
+      grid = document.getElementById("grid");
+    }
+    grid.prepend(createPinCard(pin));
+  }
+
+  // ── PIN CARD ───────────────────────────────────────────────────────────────
+  function createPinCard(pin) {
+    const div = document.createElement("div");
+    div.className = "pin-card";
+    div.id = `pin-${pin._id}`;
+    div.innerHTML = `
+      <img src="${pin.imageUrl}" alt="${pin.title}" loading="lazy" />
+      <div class="pin-overlay">
+        <div class="pin-overlay-top">
+          <button class="btn btn-red btn-sm" onclick="event.stopPropagation();savePin('${pin._id}')">💾 Save</button>
+          <button class="btn-icon" onclick="event.stopPropagation();copyToClipboard(window.location.origin+'/pin/${pin._id}')" style="background:white;font-size:.9rem;">🔗</button>
+        </div>
+        <div class="pin-overlay-bottom">
+          <div class="pin-card-title">${pin.title}</div>
+          <div class="pin-card-author">
+            ${avatarHtml(pin.author, 22)}
+            <span>${pin.author?.displayName || pin.author?.username || "Unknown"}</span>
+            <span style="margin-left:auto;font-size:.75rem;">❤️ ${pin.likes?.length || 0}</span>
+          </div>
+        </div>
+      </div>
+    `;
+    div.onclick = () => window.location.href = `/pin/${pin._id}`;
+    return div;
+  }
+
+  // ── SAVE PIN ───────────────────────────────────────────────────────────────
+  async function savePin(pinId) {
+    if (!Auth.isLoggedIn()) { openAuthModal(); return; }
+    try {
+      const data = await API.post(`/api/pins/${pinId}/save`);
+      showToast(data.saved ? "Pin saved! 💾" : "Pin unsaved", "success");
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  // ── FILTER ────────────────────────────────────────────────────────────────
+  function filterCategory(cat, btn) {
+    currentCategory = cat;
+    currentSearch = "";
+    document.getElementById("searchInput").value = "";
+    document.querySelectorAll(".cat-pill").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    loadPins();
+  }
+
+  function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      currentSearch = document.getElementById("searchInput").value.trim();
+      currentCategory = "All";
+      document.querySelectorAll(".cat-pill").forEach(p => p.classList.remove("active"));
+      document.querySelector(".cat-pill").classList.add("active");
+      loadPins();
+    }, 400);
+  }
+
+  // ── AUTH MODAL ─────────────────────────────────────────────────────────────
+  function openAuthModal(tab = "login") {
+    document.getElementById("authModal").classList.add("open");
+    switchTab(tab);
+  }
+  function closeAuthModal() { document.getElementById("authModal").classList.remove("open"); }
+  function switchTab(tab) {
+    document.getElementById("loginForm").style.display = tab === "login" ? "block" : "none";
+    document.getElementById("registerForm").style.display = tab === "register" ? "block" : "none";
+    document.getElementById("loginTab").classList.toggle("active", tab === "login");
+    document.getElementById("registerTab").classList.toggle("active", tab === "register");
+  }
+
+  async function doLogin() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const err = document.getElementById("loginError");
+    const spinner = document.getElementById("loginSpinner");
+    const btnText = document.getElementById("loginBtnText");
+    err.style.display = "none";
+    spinner.style.display = "block"; btnText.textContent = "Logging in...";
+    try {
+      const data = await API.post("/api/auth/login", { email, password });
+      Auth.save(data.token, data.user);
+      closeAuthModal();
+      renderNav();
+      showToast(`Welcome back, ${data.user.displayName}! 👋`, "success");
+      socket.emit("join", data.user._id);
+    } catch (e) {
+      err.textContent = e.message; err.style.display = "block";
+    } finally { spinner.style.display = "none"; btnText.textContent = "Log in"; }
+  }
+
+  async function doRegister() {
+    const username = document.getElementById("regUsername").value.trim();
+    const displayName = document.getElementById("regDisplayName").value.trim();
+    const email = document.getElementById("regEmail").value.trim();
+    const password = document.getElementById("regPassword").value;
+    const err = document.getElementById("registerError");
+    const spinner = document.getElementById("registerSpinner");
+    const btnText = document.getElementById("registerBtnText");
+    err.style.display = "none";
+    spinner.style.display = "block"; btnText.textContent = "Creating account...";
+    try {
+      const data = await API.post("/api/auth/register", { username, displayName, email, password });
+      Auth.save(data.token, data.user);
+      closeAuthModal();
+      renderNav();
+      showToast(`Welcome to PinSpace, ${data.user.displayName}! 🎉`, "success");
+    } catch (e) {
+      err.textContent = e.message; err.style.display = "block";
+    } finally { spinner.style.display = "none"; btnText.textContent = "Create account"; }
+  }
+
+  // ── CREATE PIN MODAL ───────────────────────────────────────────────────────
+  function openCreateModal() {
+    if (!Auth.isLoggedIn()) { openAuthModal(); return; }
+    document.getElementById("createModal").classList.add("open");
+  }
+  function closeCreateModal() { document.getElementById("createModal").classList.remove("open"); }
+
+  function handlePinFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const preview = document.getElementById("pinPreview");
+    const reader = new FileReader();
+    reader.onload = e => { preview.src = e.target.result; preview.style.display = "block"; document.getElementById("uploadPlaceholder").style.display = "none"; };
+    reader.readAsDataURL(file);
+  }
+
+  const uploadArea = document.getElementById("uploadArea");
+  uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("drag"); });
+  uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("drag"));
+  uploadArea.addEventListener("drop", e => {
+    e.preventDefault(); uploadArea.classList.remove("drag");
+    const file = e.dataTransfer.files[0];
+    if (file?.type.startsWith("image/")) {
+      const dt = new DataTransfer(); dt.items.add(file);
+      document.getElementById("pinFile").files = dt.files;
+      handlePinFile(document.getElementById("pinFile"));
+    }
+  });
+
+  async function createPin() {
+    const file = document.getElementById("pinFile").files[0];
+    const title = document.getElementById("pinTitle").value.trim();
+    if (!file) { showToast("Please select an image", "error"); return; }
+    if (!title) { showToast("Please add a title", "error"); return; }
+
+    const spinner = document.getElementById("createSpinner");
+    const btnText = document.getElementById("createBtnText");
+    spinner.style.display = "block"; btnText.textContent = "Publishing...";
+
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      fd.append("title", title);
+      fd.append("description", document.getElementById("pinDesc").value);
+      fd.append("category", document.getElementById("pinCategory").value);
+      fd.append("tags", document.getElementById("pinTags").value);
+
+      await API.upload("/api/pins", fd);
+      showToast("Pin published! 🎉", "success");
+      closeCreateModal();
+      // Reset form
+      document.getElementById("pinFile").value = "";
+      document.getElementById("pinTitle").value = "";
+      document.getElementById("pinDesc").value = "";
+      document.getElementById("pinTags").value = "";
+      document.getElementById("pinPreview").style.display = "none";
+      document.getElementById("uploadPlaceholder").style.display = "block";
+    } catch (err) { showToast(err.message, "error"); }
+    finally { spinner.style.display = "none"; btnText.textContent = "Publish Pin"; }
+  }
+
+  // ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+  function toggleNotif() {
+    const panel = document.getElementById("notifPanel");
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+    if (panel.style.display === "block") {
+      document.getElementById("notifBadge").classList.remove("show");
+      renderNotifs();
+    }
+  }
+  function updateNotifBadge() {
+    const badge = document.getElementById("notifBadge");
+    if (badge) { badge.textContent = notifications.length; badge.classList.add("show"); }
+  }
+  function renderNotifs() {
+    const list = document.getElementById("notifList");
+    if (!notifications.length) { list.innerHTML = `<div style="padding:1rem;color:var(--muted);text-align:center;font-size:.85rem;">No notifications yet</div>`; return; }
+    list.innerHTML = notifications.map(n => `
+      <div style="padding:.75rem 1rem;border-radius:10px;margin-bottom:.25rem;background:var(--bg);font-size:.85rem;">
+        ${n.type === "like" ? "❤️" : n.type === "comment" ? "💬" : "👥"} ${n.message}
+      </div>`).join("");
+  }
+
+  // ── CLOSE ON OVERLAY CLICK ─────────────────────────────────────────────────
+  document.getElementById("authModal").addEventListener("click", e => { if (e.target === e.currentTarget) closeAuthModal(); });
+  document.getElementById("createModal").addEventListener("click", e => { if (e.target === e.currentTarget) closeCreateModal(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAuthModal(); closeCreateModal(); document.getElementById("notifPanel").style.display = "none"; } });
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#notifPanel") && !e.target.closest("#notifBtn")) {
+      document.getElementById("notifPanel").style.display = "none";
+    }
+  });
+</script>
+</body>
+</html>
